@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChefStock — Gosto Paraense</title>
+  <meta name="description"
+    content="Sistema de Controle de Estoque do restaurante Gosto Paraense — gerencie insumos, bebidas, pratos e solicitações do trailer.">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=3">
+</head>
+
+<body>
+
+  <!-- ═══════════════ LOADING (Firebase Auth check) ═══════════════ -->
+  <div id="loading-overlay"
+    style="position:fixed;inset:0;background:var(--bg,#f7f5f0);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px">
+    <div style="font-size:28px;font-family:'Fraunces',serif;color:var(--ink,#2a2a2a)">Gosto<em
+        style="color:var(--rc,#c86b3a)">Paraense</em></div>
+    <div style="font-size:13px;color:#999">Carregando...</div>
+  </div>
+
+  <!-- ═══════════════ LOGIN ═══════════════════════════ -->
+  <div id="login">
+    <div class="lg-wrap">
+      <div class="lg-logo">Gosto<em>Paraense</em></div>
+      <div class="lg-brand">Sistema de Controle Interno</div>
+      <div class="lg-rest">Todos os direitos reservados</div>
+
+      <div class="lg-card">
+        <div class="lg-err" id="lg-err">Usuário ou senha incorretos. Tente novamente.</div>
+
+        <div class="lg-field">
+          <label class="lg-label">Usuário</label>
+          <input class="lg-input" id="lg-user" type="text" placeholder="seu.usuario" autocomplete="username"
+            onkeydown="if(event.key==='Enter')document.getElementById('lg-pass').focus()">
+        </div>
+        <div class="lg-field">
+          <label class="lg-label">Senha</label>
+          <input class="lg-input" id="lg-pass" type="password" placeholder="••••••••" autocomplete="current-password"
+            onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="lg-btn" onclick="doLogin()">Entrar no Sistema</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ APP ═══════════════════════════ -->
+  <div id="app">
+    <div class="tb">
+      <div class="tb-logo">Gosto<em id="tb-em"> Paraense</em></div>
+      <div class="tb-div"></div>
+      <div class="tb-pill" id="tb-pill"></div>
+      <div class="tb-user" id="tb-user"></div>
+      <div class="tb-r">
+        <button class="tb-search" onclick="openGlobalSearch()" id="btn-global-search" title="Busca global (Ctrl+K)">
+          <span class="tb-search-ic">🔍</span>
+          <span>Buscar</span>
+          <span class="tb-search-kbd">Ctrl K</span>
+        </button>
+        <div class="tb-bell" id="tb-bell" onclick="openM('m-notif');markNotifsRead()">
+          🔔 <span id="bell-n">0</span>
+          <div class="bell-dot" id="bell-dot"></div>
+        </div>
+        <div class="tb-out" onclick="logout()">Sair ❌</div>
+      </div>
+    </div>
+    <div class="shell">
+      <nav class="side" id="side"></nav>
+      <div class="main" id="main"></div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Nav (built dynamically by nav.js) -->
+  <div id="bottom-nav"></div>
+
+  <!-- ═══════════════ MODALS ═══════════════════════ -->
+
+  <!-- Notificações -->
+  <div class="ov" id="m-notif">
+    <div class="modal" style="width:460px">
+      <div class="mh">
+        <div>
+          <div class="mt">Notificações</div>
+        </div><span class="mx" onclick="closeM('m-notif')">×</span>
+      </div>
+      <div id="notif-body"></div>
+      <div class="mf"><button class="btn btn-g" onclick="closeM('m-notif')">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Recebimento — Modal de Entrada NF (2 modos) -->
+  <div class="ov" id="m-receb">
+    <div class="modal modal-wide">
+      <div class="mh">
+        <div>
+          <div class="mt" id="m-receb-title">Registrar Recebimento</div>
+          <div class="msb">Entrada de mercadoria / nota fiscal</div>
+        </div>
+        <span class="mx" onclick="closeM('m-receb')">×</span>
+      </div>
+
+      <!-- Seletor de modo -->
+      <div class="tabs" style="margin-bottom:16px">
+        <div class="tab on" onclick="recebModo(this,'rm-manual')">📝 Manual</div>
+        <div class="tab" id="receb-tab-xml" onclick="recebModo(this,'rm-xml')">📄 Importar XML (NF-e)</div>
+      </div>
+
+      <!-- ═══ MODO MANUAL ═══ -->
+      <div class="tp on" id="rm-manual">
+        <div class="fg2">
+          <div class="fg"><label class="fl">NF / Referência</label><input class="fc" id="r-nf" placeholder="NF-001234">
+          </div>
+          <div class="fg"><label class="fl">Fornecedor</label>
+            <div style="display:flex;gap:6px">
+              <select class="fc forn-select" id="r-forn" style="flex:1"></select>
+              <button class="btn btn-ok btn-xs" onclick="openNovoForn()" title="Novo Fornecedor"
+                style="flex-shrink:0">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section-title" style="margin-top:12px">
+          Itens da Nota
+          <button class="btn btn-ok btn-sm" style="margin-left:auto" onclick="addRecebItem()">+ Adicionar Item</button>
+        </div>
+        <div id="r-itens-list"></div>
+
+        <div id="r-total-bar"
+          style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--r2);margin:12px 0;font-size:13px">
+          <span><strong id="r-total-count">0</strong> item(ns)</span>
+          <span>Valor total: <strong id="r-total-valor">R$ 0,00</strong></span>
+        </div>
+
+        <div class="fg2">
+          <div class="fg"><label class="fl">Destino</label>
+            <select class="fc local-select" id="r-dest">
+            </select>
+          </div>
+          <div class="fg"><label class="fl">Observações</label><input class="fc" id="r-obs"
+              placeholder="Condições, temperatura, etc."></div>
+        </div>
+
+        <div id="r-err" class="al al-er" style="display:none;margin-top:12px"></div>
+        <div class="mf">
+          <button class="btn btn-g" onclick="closeM('m-receb')">Cancelar</button>
+          <button class="btn btn-r" id="receb-btn-save" onclick="doRecebManual()">✓ Confirmar Recebimento</button>
+        </div>
+      </div>
+
+      <!-- ═══ MODO XML ═══ -->
+      <div class="tp" id="rm-xml">
+        <div class="al al-in" style="margin-bottom:16px;font-size:12px">
+          ℹ️ Importe o arquivo <strong>.xml</strong> da NF-e para conciliar automaticamente os produtos com o estoque.
+        </div>
+
+        <div id="xml-drop-zone"
+          style="border:2px dashed var(--bdr);border-radius:var(--r2);padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s"
+          onclick="document.getElementById('xml-file-input').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--rc)';this.style.background='rgba(0,0,0,.05)'"
+          ondragleave="this.style.borderColor='var(--bdr)';this.style.background=''"
+          ondrop="event.preventDefault();this.style.borderColor='var(--bdr)';this.style.background='';handleXmlFile(event.dataTransfer.files[0])">
+          <div style="font-size:32px;margin-bottom:8px">📄</div>
+          <div style="font-size:14px;font-weight:500">Arraste o arquivo XML aqui</div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:4px">ou clique para selecionar</div>
+          <input type="file" id="xml-file-input" accept=".xml" style="display:none"
+            onchange="handleXmlFile(this.files[0])">
+        </div>
+
+        <div id="xml-info" style="display:none;margin-top:16px">
+          <div class="al al-ok" id="xml-header-info"></div>
+
+          <div id="xml-itens-section">
+          <div class="form-section-title" style="margin-top:14px">Conciliação de Itens</div>
+          <div class="al al-in" style="font-size:12px;margin-bottom:10px">
+            ℹ️ Vincule cada item da NF ao produto correspondente no estoque. Itens vinculados terão o estoque atualizado
+            automaticamente.
+          </div>
+          <div id="xml-itens-match"></div>
+
+          <div id="xml-total-bar"
+            style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--r2);margin:12px 0;font-size:13px">
+            <span><strong id="xml-total-count">0</strong> item(ns) na NF</span>
+            <span>Valor total NF: <strong id="xml-total-valor">R$ 0,00</strong></span>
+          </div>
+
+          <div class="fg2">
+            <div class="fg"><label class="fl">Destino</label>
+              <select class="fc local-select" id="xml-dest">
+              </select>
+            </div>
+            <div class="fg"><label class="fl">Observações</label><input class="fc" id="xml-obs"
+                placeholder="Condições, temperatura, etc."></div>
+          </div>
+
+          <div id="xml-err" class="al al-er" style="display:none;margin-top:12px"></div>
+          <div class="mf">
+            <button class="btn btn-g" onclick="resetXmlMode()">← Trocar Arquivo</button>
+            <button class="btn btn-r" onclick="doRecebXml()">✓ Confirmar Recebimento XML</button>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ajuste Estoque -->
+  <div class="ov" id="m-ajuste">
+    <div class="modal" style="width:400px">
+      <div class="mh">
+        <div>
+          <div class="mt">Ajustar Estoque</div>
+          <div class="msb" id="aj-sub"></div>
+        </div><span class="mx" onclick="closeM('m-ajuste')">×</span>
+      </div>
+      <input type="hidden" id="aj-item-id">
+      <input type="hidden" id="aj-grupo-id">
+      <div id="aj-info" style="font-size:12px;color:var(--ink3);margin-bottom:10px"></div>
+      <div id="aj-locais" style="margin-bottom:12px"></div>
+      <div class="fg2" style="grid-template-columns:1fr 1fr">
+        <div class="fg"><label class="fl">Tipo de Ajuste</label>
+          <select class="fc" id="aj-tipo">
+            <option value="entrada">+ Entrada</option>
+            <option value="saida">− Saída/Consumo</option>
+            <option value="perda">⚠ Perda/Descarte</option>
+            <option value="inventario">≡ Inventário (definir valor)</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Quantidade</label><input class="fc" id="aj-qtd" type="number" min="0" step="0.5" placeholder="0"></div>
+        <div class="fg" style="grid-column:1/-1"><label class="fl">Motivo</label><input class="fc" id="aj-motivo"
+            placeholder="Ex: Consumo da produção de hoje"></div>
+      </div>
+      <div id="aj-err" class="al al-er" style="display:none;margin-top:8px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-ajuste')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarAjuste()">✓ Confirmar Ajuste</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: AJUSTE EM MASSA (INVENTÁRIO) ★ -->
+  <div class="ov" id="m-bulk-ajuste">
+    <div class="modal" style="width:520px;max-height:80vh;overflow-y:auto">
+      <div class="mh">
+        <div>
+          <div class="mt">📦 Ajuste em Massa (Inventário)</div>
+          <div class="msb" id="bulk-aj-count">0 itens</div>
+        </div>
+        <span class="mx" onclick="closeM('m-bulk-ajuste')">×</span>
+      </div>
+      <div class="al al-in" style="font-size:12px;margin-bottom:12px">
+        ℹ️ Altere as quantidades para os valores reais contados no inventário.
+      </div>
+      <div id="bulk-aj-list"></div>
+      <div id="bulk-aj-err" class="al al-er" style="display:none;margin-top:8px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-bulk-ajuste')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarBulkAjuste()">✓ Salvar Inventário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUSÃO EM MASSA ★ -->
+  <div class="ov" id="m-bulk-delete">
+    <div class="modal" style="width:440px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">🗑️ Exclusão em Massa</div>
+          <div class="msb" id="bulk-del-count"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-bulk-delete')">×</span>
+      </div>
+      <div class="al al-er">⚠ Esta ação é irreversível. Os itens serão removidos permanentemente.</div>
+      <div id="bulk-del-list" style="font-size:12px;color:var(--ink3);margin:12px 0;max-height:120px;overflow-y:auto"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-bulk-delete')">Cancelar</button>
+        <button class="btn btn-er" onclick="doBulkDelete()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: DETALHE DO ITEM (distribution popout) ★ -->
+  <div class="ov" id="m-item-detail">
+    <div class="modal" style="width:520px;max-height:80vh;overflow-y:auto">
+      <div class="mh">
+        <div>
+          <div class="mt" id="item-detail-title">Detalhe do Item</div>
+          <div class="msb">Distribuição por local de armazenamento</div>
+        </div>
+        <span class="mx" onclick="closeM('m-item-detail')">×</span>
+      </div>
+      <div id="item-detail-body"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-item-detail')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: Confirmar Solicitação ITEM A ITEM ★ -->
+  <div class="ov" id="m-sol">
+    <div class="modal" style="width:580px">
+      <div class="mh">
+        <div>
+          <div class="mt">Confirmar Pedido <span id="ms-id" style="color:var(--ink3);font-size:18px"></span></div>
+          <div class="msb" id="ms-from"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-sol')">×</span>
+      </div>
+      <div id="ms-obs-area"></div>
+      <div class="al al-in" style="margin-bottom:16px;font-size:12px">
+        ℹ️ Confirme ou cancele cada item individualmente. Itens cancelados serão removidos do pedido — os demais serão
+        aprovados normalmente.
+      </div>
+      <div id="ms-items-list"></div>
+      <div class="dvd"></div>
+      <div class="fg"><label class="fl">Observação da Cozinha (opcional)</label>
+        <textarea class="fc" id="ms-obs" rows="2"
+          placeholder="Ex: Camarão substituído, entrega em 20 min..."></textarea>
+      </div>
+      <div class="mf" id="ms-footer"></div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: CONFIRMAR RECEBIMENTO (Trailer) ★ -->
+  <div class="ov" id="m-recebimento">
+    <div class="modal" style="width:540px;max-height:80vh;overflow-y:auto">
+      <div class="mh">
+        <div>
+          <div class="mt">📋 Confirmar Recebimento <span id="rec-id" style="color:var(--ink3);font-size:18px"></span></div>
+          <div class="msb" id="rec-from"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-recebimento')">×</span>
+      </div>
+      <div class="al al-in" style="margin-bottom:14px;font-size:12px">
+        ℹ️ Verifique cada item recebido. Ajuste as quantidades caso algum item tenha chegado em quantidade diferente. Clique em "Finalizar" para confirmar o recebimento.
+      </div>
+      <div id="rec-items-list"></div>
+      <div class="dvd"></div>
+      <div class="fg"><label class="fl">Observação do Recebimento (opcional)</label>
+        <textarea class="fc" id="rec-obs" rows="2"
+          placeholder="Ex: 1 lata de leite condensado veio danificada..."></textarea>
+      </div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-recebimento')">Cancelar</button>
+        <button class="btn btn-r" onclick="finalizarRecebimento()">✅ Finalizar Recebimento</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: CADASTRAR ITEM DE ESTOQUE ★ -->
+  <div class="ov" id="m-cadastro">
+    <div class="modal modal-wide">
+      <div class="mh">
+        <div>
+          <div class="mt">Cadastrar Item de Estoque</div>
+          <div class="msb">Novo insumo, bebida ou prato pronto</div>
+        </div>
+        <span class="mx" onclick="closeM('m-cadastro')">×</span>
+      </div>
+
+      <div class="form-section-title">Tipo do item <span class="req-mark">*</span></div>
+      <div class="tipo-radio-group" style="margin-bottom:4px" id="cad-tipos-area"></div>
+
+      <div class="form-section-title">Identificação <span class="req-mark">*</span></div>
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome do item <span class="req-mark">*</span></label>
+          <input class="fc" id="cad-nome" placeholder="Ex: Camarão Fresco, Refrigerante 2L, Tacacá...">
+        </div>
+        <div class="fg">
+          <label class="fl">Categoria <span class="req-mark">*</span></label>
+          <select class="fc" id="cad-cat">
+            <option value="">Selecione...</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade de consumo <span class="req-mark">*</span></label>
+          <select class="fc" id="cad-un" onchange="cadUpdateConvPreview()">
+            <option value="g">g (gramas)</option>
+            <option value="ml">ml (mililitros)</option>
+            <option value="kg">kg</option>
+            <option value="L">L</option>
+            <option value="un">un</option>
+            <option value="cx">cx</option>
+            <option value="pct">pct</option>
+            <option value="porção">porção</option>
+          </select>
+          <span class="field-hint">Unidade usada nas fichas de produção e no estoque</span>
+        </div>
+      </div>
+
+      <!-- Seção de Conversão de Embalagem -->
+      <div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📦 Comprado em Pacote / Caixa?</span>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;cursor:pointer">
+          <input type="checkbox" id="cad-usa-conv" onchange="cadToggleConv(this.checked)" style="accent-color:var(--pr)">
+          Sim, configurar conversão
+        </label>
+      </div>
+      <div id="cad-conv-group" style="display:none;margin-bottom:12px">
+        <div class="al al-in" style="font-size:12px;margin-bottom:10px">
+          ℹ️ Configure aqui quando o item é comprado em embalagem fechada (pacote, caixa, fardo) mas consumido em unidade menor (g, ml). O sistema converterá automaticamente ao registrar entradas e fichas de produção.
+        </div>
+        <div class="fg2">
+          <div class="fg">
+            <label class="fl">Unidade de compra</label>
+            <select class="fc" id="cad-un-compra" onchange="cadUpdateConvPreview()">
+              <option value="pct">pct (pacote)</option>
+              <option value="cx">cx (caixa)</option>
+              <option value="fdo">fdo (fardo)</option>
+              <option value="un">un (unidade)</option>
+              <option value="kg">kg</option>
+              <option value="L">L</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Fator de conversão <span class="req-mark">*</span></label>
+            <input class="fc" id="cad-fator" type="number" min="0.001" step="0.001" placeholder="Ex: 497" oninput="cadUpdateConvPreview()">
+            <span class="field-hint">Quantidade de <span id="cad-fator-hint-un">g</span> por 1 <span id="cad-fator-hint-compra">pct</span></span>
+          </div>
+        </div>
+        <div id="cad-conv-preview" style="padding:8px 12px;background:var(--ok-l,#edf7ed);border:1px solid var(--ok-b,#b2dfdb);border-radius:var(--r2);font-size:12px;margin-top:6px;display:none">
+          📐 Preview: 1 <strong id="cpv-compra">pct</strong> = <strong id="cpv-fator">—</strong> <strong id="cpv-consumo">g</strong>
+        </div>
+      </div>
+
+      <div class="form-section-title">Controle de Estoque</div>
+      <div class="fg2">
+        <div class="fg">
+          <label class="fl">Quantidade Inicial <span class="req-mark">*</span></label>
+          <input class="fc" id="cad-estq" type="number" min="0" step="0.001" placeholder="0">
+          <span class="field-hint" id="cad-estq-hint">Em unidades de consumo</span>
+        </div>
+        <div class="fg">
+          <label class="fl">Estoque Mínimo <span class="req-mark">*</span></label>
+          <input class="fc" id="cad-min" type="number" min="0" step="0.001" placeholder="0">
+          <span class="field-hint">Alerta será gerado abaixo deste valor</span>
+        </div>
+        <div class="fg" id="cad-local-group">
+          <label class="fl">Local de armazenamento <span class="req-mark">*</span></label>
+          <select class="fc local-select" id="cad-local">
+          </select>
+        </div>
+      </div>
+
+      <div class="form-section-title">Valores</div>
+      <div class="fg2">
+        <div class="fg">
+          <label class="fl" id="cad-custo-label">Custo unitário (R$) <span class="req-mark">*</span></label>
+          <input class="fc" id="cad-custo" type="number" min="0" step="0.01" placeholder="0,00" oninput="cadUpdateConvPreview()">
+          <span class="field-hint" id="cad-custo-hint">Custo por unidade de consumo</span>
+        </div>
+        <div class="fg" id="cad-venda-group" style="display:none">
+          <label class="fl">Preço de venda (R$)</label>
+          <input class="fc" id="cad-venda" type="number" min="0" step="0.01" placeholder="0,00">
+        </div>
+      </div>
+
+      <div id="cad-val-group">
+        <div class="form-section-title">Validade</div>
+        <div class="fg2">
+          <div class="fg">
+            <label class="fl">Data de Validade</label>
+            <input class="fc" id="cad-val" type="date">
+            <span class="field-hint">Opcional — deixe em branco se não aplicável</span>
+          </div>
+          <div class="fg" id="cad-forn-wrap">
+            <label class="fl">Fornecedor</label>
+            <div style="display:flex;gap:6px">
+              <select class="fc forn-select" id="cad-forn" style="flex:1"></select>
+              <button class="btn btn-ok btn-xs" onclick="openNovoForn()" title="Novo Fornecedor"
+                style="flex-shrink:0">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="cad-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-cadastro')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarCadastro()">✓ Cadastrar Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EDITAR ITEM DE ESTOQUE ★ -->
+  <div class="ov" id="m-editar">
+    <div class="modal modal-wide">
+      <div class="mh">
+        <div>
+          <div class="mt">Editar Item <span class="edit-badge" id="edit-badge-tipo">—</span></div>
+          <div class="msb" id="edit-subtitle">—</div>
+          <div style="margin-top:6px">
+            <label class="fl" style="font-size:10px">Tipo de Estoque</label>
+            <select class="fc" id="edit-tipo-sel" style="font-size:12px" onchange="onEditTipoChange()"></select>
+          </div>
+        </div>
+        <span class="mx" onclick="closeM('m-editar')">×</span>
+      </div>
+
+      <input type="hidden" id="edit-id">
+      <input type="hidden" id="edit-grupo">
+
+      <div class="modal-tabs">
+        <div class="modal-tab on" onclick="editTab(this,'et-info')">📋 Informações</div>
+        <div class="modal-tab" onclick="editTab(this,'et-estq')">📦 Estoque</div>
+        <div class="modal-tab" onclick="editTab(this,'et-fin')">💰 Valores</div>
+      </div>
+
+      <!-- ABA: Informações -->
+      <div class="modal-tp on" id="et-info">
+        <div class="fg2">
+          <div class="fg" style="grid-column:1/-1">
+            <label class="fl">Nome do item <span class="req-mark">*</span></label>
+            <input class="fc" id="edit-nome" placeholder="Nome do item">
+          </div>
+          <div class="fg">
+            <label class="fl">Categoria</label>
+            <select class="fc" id="edit-cat">
+              <optgroup label="Insumos">
+                <option>Fruto do Mar</option>
+                <option>Proteína</option>
+                <option>Base Paraense</option>
+                <option>Grãos</option>
+                <option>Tempero</option>
+                <option>Descartável</option>
+              </optgroup>
+              <optgroup label="Bebidas">
+                <option>Refrigerante</option>
+                <option>Água</option>
+                <option>Suco</option>
+              </optgroup>
+              <optgroup label="Pratos">
+                <option>Comida Paraense</option>
+                <option>Comida Caseira</option>
+                <option>Comida+ Paraense</option>
+                <option>Adicional</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="fl">Unidade de consumo</label>
+            <select class="fc" id="edit-un" onchange="editUpdateConvPreview()">
+              <option value="g">g (gramas)</option>
+              <option value="ml">ml (mililitros)</option>
+              <option value="kg">kg</option>
+              <option value="L">L</option>
+              <option value="un">un</option>
+              <option value="cx">cx</option>
+              <option value="pct">pct</option>
+              <option value="porção">porção</option>
+            </select>
+            <span class="field-hint">Usada nas fichas de produção</span>
+          </div>
+          <div class="fg" id="edit-local-wrap">
+            <label class="fl">Local de armazenamento</label>
+            <select class="fc local-select" id="edit-local">
+            </select>
+          </div>
+          <div class="fg" id="edit-forn-wrap">
+            <label class="fl">Fornecedor</label>
+            <div style="display:flex;gap:6px">
+              <select class="fc forn-select" id="edit-forn" style="flex:1"></select>
+              <button class="btn btn-ok btn-xs" onclick="openNovoForn()" title="Novo Fornecedor"
+                style="flex-shrink:0">+</button>
+            </div>
+          </div>
+        </div>
+        <!-- Conversão de embalagem (edição) -->
+        <div class="fg" style="grid-column:1/-1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <strong style="font-size:13px">📦 Conversão por embalagem</strong>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="edit-usa-conv" onchange="editToggleConv(this.checked)" style="accent-color:var(--pr)">
+              Ativo
+            </label>
+          </div>
+          <div id="edit-conv-group" style="display:none">
+            <div class="fg2" style="margin-bottom:8px">
+              <div class="fg" style="margin:0">
+                <label class="fl" style="font-size:11px">Unidade de compra</label>
+                <select class="fc" id="edit-un-compra" onchange="editUpdateConvPreview()" style="font-size:12px">
+                  <option value="pct">pct (pacote)</option>
+                  <option value="cx">cx (caixa)</option>
+                  <option value="fdo">fdo (fardo)</option>
+                  <option value="un">un (unidade)</option>
+                  <option value="kg">kg</option>
+                  <option value="L">L</option>
+                </select>
+              </div>
+              <div class="fg" style="margin:0">
+                <label class="fl" style="font-size:11px">Fator de conversão</label>
+                <input class="fc" id="edit-fator" type="number" min="0.001" step="0.001" placeholder="Ex: 497" oninput="editUpdateConvPreview()" style="font-size:12px">
+                <span class="field-hint" style="font-size:10px">Qtd. por 1 <span id="edit-fator-hint-compra">pct</span></span>
+              </div>
+            </div>
+            <div id="edit-conv-preview" style="padding:8px 12px;background:var(--ok-l,#edf7ed);border:1px solid var(--ok-b,#b2dfdb);border-radius:var(--r2);font-size:12px;display:none">
+              📐 1 <strong id="epv-compra">pct</strong> = <strong id="epv-fator">—</strong> <strong id="epv-consumo">g</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA: Estoque -->
+      <div class="modal-tp" id="et-estq">
+        <div class="al al-in" style="margin-bottom:16px;font-size:12px">
+          ℹ️ Alterar a quantidade aqui registra um ajuste de inventário no histórico.
+        </div>
+        <div class="fg2">
+          <div class="fg">
+            <label class="fl">Quantidade Atual <span class="req-mark">*</span></label>
+            <input class="fc" id="edit-estq" type="number" min="0" step="0.5">
+          </div>
+          <div class="fg">
+            <label class="fl">Estoque Mínimo <span class="req-mark">*</span></label>
+            <input class="fc" id="edit-min" type="number" min="0" step="0.5">
+            <span class="field-hint">Alerta ao atingir este valor</span>
+          </div>
+          <div class="fg" id="edit-val-wrap">
+            <label class="fl">Validade</label>
+            <input class="fc" id="edit-val" type="date">
+          </div>
+        </div>
+        <div
+          style="margin-top:16px;padding:14px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--r2)">
+          <div class="fl" style="margin-bottom:8px">Prévia do nível de estoque</div>
+          <div id="edit-nivel-preview"></div>
+        </div>
+      </div>
+
+      <!-- ABA: Valores -->
+      <div class="modal-tp" id="et-fin">
+        <div class="fg2">
+          <div class="fg">
+            <label class="fl">Custo unitário (R$) <span class="req-mark">*</span></label>
+            <input class="fc" id="edit-custo" type="number" min="0" step="0.01">
+          </div>
+          <div class="fg" id="edit-venda-wrap">
+            <label class="fl">Preço de venda (R$)</label>
+            <input class="fc" id="edit-venda" type="number" min="0" step="0.01">
+          </div>
+        </div>
+        <div id="edit-margem-info"
+          style="margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--r2);font-size:12px;color:var(--ink3)">
+        </div>
+      </div>
+
+      <div id="edit-err" class="al al-er" style="display:none;margin-top:12px"></div>
+
+      <div class="mf">
+        <button class="btn btn-er btn-sm" onclick="confirmarExclusao()" id="btn-excluir">🗑️ Excluir</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-g" onclick="closeM('m-editar')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarEdicao()">✓ Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmação de exclusão -->
+  <div class="ov" id="m-excluir">
+    <div class="modal" style="width:400px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir Item</div>
+          <div class="msb" id="excl-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-excluir')">×</span>
+      </div>
+      <div class="al al-er">⚠ Esta ação é irreversível. O item será removido permanentemente do estoque.</div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-excluir')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluir()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: CRIAR NOVO TIPO DE ITEM ★ -->
+  <div class="ov" id="m-novo-tipo">
+    <div class="modal" style="width:500px">
+      <div class="mh">
+        <div>
+          <div class="mt">Criar Novo Tipo de Item</div>
+          <div class="msb">Defina um novo grupo para o estoque</div>
+        </div>
+        <span class="mx" onclick="closeM('m-novo-tipo')">×</span>
+      </div>
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome do tipo <span class="req-mark">*</span></label>
+          <input class="fc" id="nt-nome" placeholder="Ex: Sobremesas, Material de Limpeza, Temperos...">
+        </div>
+        <div class="fg">
+          <label class="fl">Ícone (emoji)</label>
+          <input class="fc" id="nt-icon" value="📦" style="font-size:18px;width:80px">
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade padrão</label>
+          <select class="fc" id="nt-un">
+            <option value="kg">kg</option>
+            <option value="L">L</option>
+            <option value="un" selected>un</option>
+            <option value="cx">cx</option>
+            <option value="pct">pct</option>
+            <option value="porção">porção</option>
+          </select>
+        </div>
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Categorias <span class="req-mark">*</span></label>
+          <input class="fc" id="nt-cats" placeholder="Ex: Doces, Salgados, Bolos (separados por vírgula)">
+          <span class="field-hint">Separe as categorias por vírgula</span>
+        </div>
+      </div>
+      <div class="form-section-title">Campos extras deste tipo</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="nt-local" checked> Local de armazenamento
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="nt-forn"> Fornecedor
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="nt-venda"> Preço de venda
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="nt-val" checked> Validade
+        </label>
+      </div>
+      <div id="nt-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-novo-tipo')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarNovoTipo()">✓ Criar Tipo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EDITAR TIPO DE ITEM ★ -->
+  <div class="ov" id="m-edit-tipo">
+    <div class="modal" style="width:500px">
+      <div class="mh">
+        <div>
+          <div class="mt">Editar Tipo de Item</div>
+          <div class="msb" id="et-sub">—</div>
+        </div>
+        <span class="mx" onclick="closeM('m-edit-tipo')">×</span>
+      </div>
+      <input type="hidden" id="et-orig-id">
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome do tipo <span class="req-mark">*</span></label>
+          <input class="fc" id="et-nome" placeholder="Ex: Sobremesas, Material de Limpeza...">
+        </div>
+        <div class="fg">
+          <label class="fl">Ícone (emoji)</label>
+          <input class="fc" id="et-icon" value="📦" style="font-size:18px;width:80px">
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade padrão</label>
+          <select class="fc" id="et-un">
+            <option value="kg">kg</option>
+            <option value="L">L</option>
+            <option value="un" selected>un</option>
+            <option value="cx">cx</option>
+            <option value="pct">pct</option>
+            <option value="porção">porção</option>
+          </select>
+        </div>
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Categorias <span class="req-mark">*</span></label>
+          <input class="fc" id="et-cats" placeholder="Ex: Doces, Salgados, Bolos (separados por vírgula)">
+          <span class="field-hint">Separe as categorias por vírgula</span>
+        </div>
+      </div>
+      <div class="form-section-title">Campos extras deste tipo</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="et-local"> Local de armazenamento
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="et-forn"> Fornecedor
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="et-venda"> Preço de venda
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="et-val"> Validade
+        </label>
+      </div>
+      <div id="et-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-er btn-sm" onclick="confirmarExcluirTipo()" id="btn-excluir-tipo">🗑️ Excluir Tipo</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-g" onclick="closeM('m-edit-tipo')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarEdicaoTipo()">✓ Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUIR TIPO DE ITEM ★ -->
+  <div class="ov" id="m-del-tipo">
+    <div class="modal" style="width:420px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir Tipo</div>
+          <div class="msb" id="del-tipo-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-del-tipo')">×</span>
+      </div>
+      <div class="al al-er">⚠ Esta ação irá remover o tipo e <strong>todos os itens associados</strong> permanentemente.</div>
+      <div id="del-tipo-count" style="font-size:13px;color:var(--ink3);margin:12px 0"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-del-tipo')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluirTipo()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: ADICIONAR USUÁRIO ★ -->
+  <div class="ov" id="m-add-user">
+    <div class="modal" style="width:480px">
+      <div class="mh">
+        <div>
+          <div class="mt">Adicionar Usuário</div>
+          <div class="msb">Novo acesso ao sistema</div>
+        </div>
+        <span class="mx" onclick="closeM('m-add-user')">×</span>
+      </div>
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome completo <span class="req-mark">*</span></label>
+          <input class="fc" id="usr-nome" placeholder="Ex: João da Silva">
+        </div>
+        <div class="fg">
+          <label class="fl">Login (usuário) <span class="req-mark">*</span></label>
+          <input class="fc" id="usr-login" placeholder="joao.silva"
+            oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9._]/g,'')">
+          <span class="field-hint">Apenas letras minúsculas, números e pontos</span>
+        </div>
+        <div class="fg">
+          <label class="fl">Senha <span class="req-mark">*</span></label>
+          <input class="fc" id="usr-senha" type="text" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="fg">
+          <label class="fl">Perfil <span class="req-mark">*</span></label>
+          <select class="fc" id="usr-role">
+            <option value="adm">🛡️ Administrador</option>
+            <option value="coz">👨‍🍳 Cozinha</option>
+            <option value="trl">🚌 Trailer</option>
+            <option value="conf">📋 Conferente</option>
+          </select>
+        </div>
+      </div>
+      <div id="usr-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-add-user')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarUsuario()">✓ Adicionar Usuário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EDITAR USUÁRIO ★ -->
+  <div class="ov" id="m-edit-user">
+    <div class="modal" style="width:480px">
+      <div class="mh">
+        <div>
+          <div class="mt">Editar Usuário</div>
+          <div class="msb" id="edit-usr-sub">—</div>
+        </div>
+        <span class="mx" onclick="closeM('m-edit-user')">×</span>
+      </div>
+      <input type="hidden" id="edit-usr-orig">
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome completo <span class="req-mark">*</span></label>
+          <input class="fc" id="edit-usr-nome">
+        </div>
+        <div class="fg">
+          <label class="fl">Login (usuário)</label>
+          <input class="fc" id="edit-usr-login" disabled style="opacity:.6">
+          <span class="field-hint">O login não pode ser alterado</span>
+        </div>
+        <div class="fg">
+          <label class="fl">Nova senha</label>
+          <input class="fc" id="edit-usr-senha" type="text" placeholder="Deixe em branco para manter">
+        </div>
+        <div class="fg">
+          <label class="fl">Perfil <span class="req-mark">*</span></label>
+          <select class="fc" id="edit-usr-role">
+            <option value="adm">🛡️ Administrador</option>
+            <option value="coz">👨‍🍳 Cozinha</option>
+            <option value="trl">🚌 Trailer</option>
+            <option value="conf">📋 Conferente</option>
+          </select>
+        </div>
+      </div>
+      <div id="edit-usr-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-edit-user')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarEdicaoUsuario()">✓ Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUIR USUÁRIO ★ -->
+  <div class="ov" id="m-del-user">
+    <div class="modal" style="width:400px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir Usuário</div>
+          <div class="msb" id="del-usr-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-del-user')">×</span>
+      </div>
+      <div class="al al-er">⚠ Esta ação é irreversível. O usuário perderá acesso ao sistema.</div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-del-user')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluirUsuario()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: NOVA FICHA DE PRODUÇÃO ★ -->
+  <div class="ov" id="m-ficha-prod">
+    <div class="modal modal-wide">
+      <div class="mh">
+        <div>
+          <div class="mt">🍳 Nova Ficha de Produção</div>
+          <div class="msb">Preencha o cabeçalho e os insumos utilizados</div>
+        </div>
+        <span class="mx" onclick="closeM('m-ficha-prod')">×</span>
+      </div>
+
+      <div class="form-section-title">Cabeçalho da Ficha</div>
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome do Produto (1) <span class="req-mark">*</span></label>
+          <div id="fp-produto-wrap" style="position:relative">
+            <input class="fc" id="fp-produto-search" type="text"
+              placeholder="🔍 Digite o nome do produto..." autocomplete="off"
+              oninput="filtrarProdutosFicha(this.value)" onfocus="filtrarProdutosFicha(this.value)"
+              style="font-size:13px">
+            <div id="fp-produto-dd" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:white;border:1px solid var(--bdr);border-radius:0 0 var(--r2) var(--r2);box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:20"></div>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Data de Produção (2) <span class="req-mark">*</span></label>
+          <input class="fc" id="fp-data" type="date">
+        </div>
+        <div class="fg">
+          <label class="fl">Hora do Início (3) <span class="req-mark">*</span></label>
+          <input class="fc" id="fp-hora" type="time">
+        </div>
+        <div class="fg">
+          <label class="fl">Un. de Medida (4)</label>
+          <select class="fc" id="fp-un">
+            <option value="kg">kg</option>
+            <option value="L">L</option>
+            <option value="un">un</option>
+            <option value="porção" selected>porção</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-section-title" style="margin-top:14px">
+        Insumos Utilizados
+        <button class="btn btn-ok btn-sm" style="margin-left:auto" onclick="addFichaInsumo()">+ Adicionar
+          Insumo</button>
+      </div>
+      <div class="al al-in" style="font-size:12px;margin-bottom:10px">
+        ℹ️ Selecione cada ingrediente utilizado na produção. O estoque será deduzido automaticamente ao iniciar.
+      </div>
+      <div id="fp-insumos-list"></div>
+
+      <div class="fg" style="margin-top:14px">
+        <label class="fl">Observações da Produção (opcional)</label>
+        <textarea class="fc" id="fp-obs" rows="2" placeholder="Ex: Lote especial, ajuste de tempero, rendimento esperado..."></textarea>
+      </div>
+
+      <div id="fp-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-ficha-prod')">Cancelar</button>
+        <button class="btn btn-r" onclick="iniciarProducao()">🍳 Revisar e Iniciar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: FINALIZAR PRODUÇÃO ★ -->
+  <div class="ov" id="m-finalizar-prod">
+    <div class="modal" style="width:440px">
+      <div class="mh">
+        <div>
+          <div class="mt" id="ff-titulo">Finalizar Produção</div>
+          <div class="msb" id="ff-sub">—</div>
+        </div>
+        <span class="mx" onclick="closeM('m-finalizar-prod')">×</span>
+      </div>
+      <input type="hidden" id="ff-id">
+      <div class="fg2">
+        <div class="fg">
+          <label class="fl">Horário de Finalização (8) <span class="req-mark">*</span></label>
+          <input class="fc" id="ff-hora" type="time">
+        </div>
+        <div class="fg">
+          <label class="fl">Quantidade Produzida (9) <span class="req-mark">*</span></label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="fc" id="ff-qtd" type="number" min="0" step="0.5" placeholder="0" style="flex:1">
+            <span id="ff-un-label" style="font-size:13px;color:var(--ink3)">porção</span>
+          </div>
+        </div>
+      </div>
+      <div class="al al-in" style="font-size:12px;margin-top:8px">
+        ℹ️ Assinatura da Produção (10): <strong id="ff-assinatura"></strong> (usuário logado)
+      </div>
+      <div class="fg" style="margin-top:14px">
+        <label class="fl">Observações da Finalização (opcional)</label>
+        <textarea class="fc" id="ff-obs" rows="2" placeholder="Ex: Rendimento abaixo do esperado, substituição de ingrediente..."></textarea>
+      </div>
+      <div id="ff-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-finalizar-prod')">Cancelar</button>
+        <button class="btn btn-r" onclick="finalizarProducao()">✅ Finalizar Produção</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: NOVO/EDITAR FORNECEDOR ★ -->
+  <div class="ov" id="m-novo-forn">
+    <div class="modal" style="width:480px">
+      <div class="mh">
+        <div>
+          <div class="mt" id="nf-title">🏢 Novo Fornecedor</div>
+          <div class="msb">Cadastre um novo fornecedor no sistema</div>
+        </div>
+        <span class="mx" onclick="closeM('m-novo-forn')">×</span>
+      </div>
+      <input type="hidden" id="nf-id">
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Nome do Fornecedor <span class="req-mark">*</span></label>
+        <input class="fc" id="nf-nome" placeholder="Ex: Distribuidora ABC">
+      </div>
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Contato (telefone, email, etc.)</label>
+        <input class="fc" id="nf-contato" placeholder="Ex: (91) 99999-0000">
+      </div>
+      <div class="fg">
+        <label class="fl">Observações</label>
+        <textarea class="fc" id="nf-obs" rows="2" placeholder="Informações adicionais..."></textarea>
+      </div>
+      <div id="nf-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-novo-forn')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarForn()">✅ Salvar Fornecedor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUIR FORNECEDOR ★ -->
+  <div class="ov" id="m-del-forn">
+    <div class="modal" style="width:420px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir Fornecedor</div>
+          <div class="msb" id="del-forn-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-del-forn')">×</span>
+      </div>
+      <div class="al al-er">⚠ Esta ação irá remover o fornecedor do sistema. Itens já associados manterão o nome
+        registrado.</div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-del-forn')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluirForn()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ★ MODAL: NOVO/EDITAR ITEM DO CARDÁPIO ★ -->
+  <div class="ov" id="m-cardapio">
+    <div class="modal" style="width:480px">
+      <div class="mh">
+        <div>
+          <div class="mt" id="cd-title">🍽️ Novo Item do Cardápio</div>
+          <div class="msb">Defina um prato ou item produzido</div>
+        </div>
+        <span class="mx" onclick="closeM('m-cardapio')">×</span>
+      </div>
+      <input type="hidden" id="cd-id">
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Nome do Prato <span class="req-mark">*</span></label>
+        <input class="fc" id="cd-nome" placeholder="Ex: Tacacá, Vatapá, Maniçoba...">
+      </div>
+      <div class="fg2">
+        <div class="fg">
+          <label class="fl">Categoria</label>
+          <input class="fc" id="cd-cat" placeholder="Ex: Comida Paraense, Sobremesa...">
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade de medida</label>
+          <select class="fc" id="cd-un">
+            <option value="porção">porção</option>
+            <option value="un">un</option>
+            <option value="kg">kg</option>
+            <option value="L">L</option>
+          </select>
+        </div>
+      </div>
+      <div id="cd-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-er btn-sm" id="btn-cd-del" onclick="confirmarExcluirCardapio(document.getElementById('cd-id').value)" style="display:none">🗑️ Excluir</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-g" onclick="closeM('m-cardapio')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarCardapio()">✓ Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUIR ITEM DO CARDÁPIO ★ -->
+  <div class="ov" id="m-del-cardapio">
+    <div class="modal" style="width:400px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir do Cardápio</div>
+          <div class="msb" id="del-cd-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-del-cardapio')">×</span>
+      </div>
+      <div class="al al-er">⚠ Este item será removido do cardápio e não poderá mais ser selecionado em novas produções.</div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-del-cardapio')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluirCardapio()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <!-- ★ MODAL: NOVO/EDITAR CATEGORIA ★ -->
+  <div class="ov" id="m-categoria">
+    <div class="modal" style="width:440px">
+      <div class="mh">
+        <div>
+          <div class="mt" id="cat-title">🏷️ Nova Categoria</div>
+          <div class="msb">Defina uma categoria para um tipo de estoque</div>
+        </div>
+        <span class="mx" onclick="closeM('m-categoria')">×</span>
+      </div>
+      <input type="hidden" id="cat-id">
+      <input type="hidden" id="cat-old">
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Tipo de Estoque <span class="req-mark">*</span></label>
+        <select class="fc" id="cat-tipo"></select>
+      </div>
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Nome da Categoria <span class="req-mark">*</span></label>
+        <input class="fc" id="cat-nome" placeholder="Ex: Fruto do Mar, Proteína, Farinha...">
+      </div>
+      <div id="cat-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-er btn-sm" id="btn-cat-del" onclick="confirmarExcluirCat(document.getElementById('cat-id').value,document.getElementById('cat-old').value)" style="display:none">🗑️ Excluir</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-g" onclick="closeM('m-categoria')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarCategoria()">✓ Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUIR CATEGORIA ★ -->
+  <div class="ov" id="m-del-cat">
+    <div class="modal" style="width:400px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir Categoria</div>
+          <div class="msb" id="del-cat-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-del-cat')">×</span>
+      </div>
+      <div class="al al-er">⚠ Esta categoria será removida permanentemente do tipo.</div>
+      <div id="del-cat-count" style="font-size:13px;color:var(--ink3);margin:12px 0"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-del-cat')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluirCat()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: NOVO/EDITAR LOCAL DE ARMAZENAMENTO ★ -->
+  <div class="ov" id="m-local">
+    <div class="modal" style="width:440px">
+      <div class="mh">
+        <div>
+          <div class="mt" id="lc-title">📍 Novo Local de Armazenamento</div>
+          <div class="msb">Defina onde os itens serão guardados</div>
+        </div>
+        <span class="mx" onclick="closeM('m-local')">×</span>
+      </div>
+      <input type="hidden" id="lc-id">
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Nome do Local <span class="req-mark">*</span></label>
+        <input class="fc" id="lc-nome" placeholder="Ex: Câmara Fria, Estoque Seco...">
+      </div>
+      <div class="fg" style="margin-bottom:12px">
+        <label class="fl">Setor <span class="req-mark">*</span></label>
+        <select class="fc" id="lc-setor">
+          <option value="Cozinha">🍳 Cozinha</option>
+          <option value="Trailer">🚌 Trailer</option>
+        </select>
+      </div>
+      <div id="lc-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-er btn-sm" id="btn-lc-del" onclick="confirmarExcluirLocal(document.getElementById('lc-id').value)" style="display:none">🗑️ Excluir</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-g" onclick="closeM('m-local')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarLocal()">✓ Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EXCLUIR LOCAL ★ -->
+  <div class="ov" id="m-del-local">
+    <div class="modal" style="width:400px">
+      <div class="mh">
+        <div>
+          <div class="mt" style="color:var(--er)">Excluir Local</div>
+          <div class="msb" id="del-lc-nome"></div>
+        </div>
+        <span class="mx" onclick="closeM('m-del-local')">×</span>
+      </div>
+      <div class="al al-er">⚠ Este local será removido permanentemente.</div>
+      <div id="del-lc-count" style="font-size:13px;color:var(--ink3);margin:12px 0"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-del-local')">Cancelar</button>
+        <button class="btn btn-er" onclick="doExcluirLocal()">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EDITAR RECEBIMENTO (F3) ★ -->
+  <div class="ov" id="m-edit-receb">
+    <div class="modal" style="width:440px">
+      <div class="mh">
+        <div>
+          <div class="mt">✏️ Editar Recebimento</div>
+          <div class="msb">Altere os dados da nota fiscal registrada</div>
+        </div>
+        <span class="mx" onclick="closeM('m-edit-receb')">×</span>
+      </div>
+      <div class="fg2">
+        <div class="fg">
+          <label class="fl">NF / Referência <span class="req-mark">*</span></label>
+          <input class="fc" id="er-ref" placeholder="NF-001234">
+        </div>
+        <div class="fg">
+          <label class="fl">Fornecedor</label>
+          <input class="fc" id="er-forn" placeholder="Nome do fornecedor">
+        </div>
+        <div class="fg">
+          <label class="fl">Destino</label>
+          <input class="fc" id="er-dest" placeholder="Local de destino">
+        </div>
+        <div class="fg">
+          <label class="fl">Observações</label>
+          <input class="fc" id="er-obs" placeholder="Condições, temperatura, etc.">
+        </div>
+      </div>
+      <div id="er-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-edit-receb')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarEditReceb()">✓ Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: NOVO INSUMO VIA CONCILIAÇÃO XML (F1) ★ -->
+  <div class="ov" id="m-novo-insumo-xml">
+    <div class="modal" style="width:500px">
+      <div class="mh">
+        <div>
+          <div class="mt">📝 Cadastrar Novo Insumo</div>
+          <div class="msb">O insumo será salvo e disponível para vincular na conciliação</div>
+        </div>
+        <span class="mx" onclick="closeM('m-novo-insumo-xml')">×</span>
+      </div>
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Tipo de Estoque <span class="req-mark">*</span></label>
+          <select class="fc" id="nix-tipo"></select>
+        </div>
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Nome no Estoque <span class="req-mark">*</span></label>
+          <input class="fc" id="nix-nome" placeholder="Ex: Camarão Fresco">
+        </div>
+        <div class="fg">
+          <label class="fl">Categoria</label>
+          <input class="fc" id="nix-cat" placeholder="Ex: Fruto do Mar">
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade</label>
+          <select class="fc" id="nix-un">
+            <option value="kg">kg</option>
+            <option value="L">L</option>
+            <option value="un">un</option>
+            <option value="pct">pct</option>
+            <option value="cx">cx</option>
+            <option value="porção">porção</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Estoque Mínimo</label>
+          <input class="fc" id="nix-min" type="number" min="0" step="0.5" value="0">
+        </div>
+        <div class="fg">
+          <label class="fl">Fornecedor</label>
+          <input class="fc" id="nix-forn" placeholder="Fornecedor do item">
+        </div>
+      </div>
+      <div class="al al-in" style="font-size:12px;margin-top:8px">
+        ℹ️ Após salvar, o novo item ficará disponível no <strong>select de vínculo</strong> da conciliação — selecione-o para vincular.
+      </div>
+      <div id="nix-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-novo-insumo-xml')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarNovoInsumoXml()">✓ Salvar Insumo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: EDITAR FICHA DE PRODUÇÃO (F6) ★ -->
+  <div class="ov" id="m-edit-ficha">
+    <div class="modal modal-wide">
+      <div class="mh">
+        <div>
+          <div class="mt" id="ef-titulo">✏️ Editar Ficha de Produção</div>
+          <div class="msb" id="ef-sub">—</div>
+        </div>
+        <span class="mx" onclick="closeM('m-edit-ficha')">×</span>
+      </div>
+      <input type="hidden" id="ef-id">
+      <div class="fg2">
+        <div class="fg">
+          <label class="fl">Data <span class="req-mark">*</span></label>
+          <input class="fc" id="ef-data" type="date">
+        </div>
+        <div class="fg">
+          <label class="fl">Hora Início</label>
+          <input class="fc" id="ef-hora" type="time">
+        </div>
+        <div class="fg">
+          <label class="fl">Qtd. Produzida</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="fc" id="ef-qtd" type="number" min="0" step="0.5" placeholder="0" style="flex:1">
+            <span id="ef-un-label" style="font-size:13px;color:var(--ink3)">porção</span>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="fl">Hora Fim</label>
+          <input class="fc" id="ef-hora-fim" type="time">
+        </div>
+      </div>
+      <div class="form-section-title" style="margin-top:14px">Insumos Utilizados</div>
+      <div id="ef-insumos-list"></div>
+      <div class="fg" style="margin-top:14px">
+        <label class="fl">Observações</label>
+        <textarea class="fc" id="ef-obs" rows="2" placeholder="Observações da produção..."></textarea>
+      </div>
+      <div id="ef-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-edit-ficha')">Cancelar</button>
+        <button class="btn btn-r" onclick="salvarEditFicha()">✓ Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: CONFIGURAÇÕES GERAIS E TELEGRAM (F2) ★ -->
+  <div class="ov" id="m-config">
+    <div class="modal" style="width:480px">
+      <div class="mh">
+        <div>
+          <div class="mt">⚙️ Configurações do Sistema</div>
+          <div class="msb">Ajuste de integrações e alertas automatizados</div>
+        </div>
+        <span class="mx" onclick="closeM('m-config')">×</span>
+      </div>
+      <div class="form-section-title">Integração Telegram API</div>
+      <div class="al al-in" style="font-size:12px;margin-bottom:12px">
+        O sistema envia mensagens push no Telegram sempre que o Trailer solicita novos pedidos ou o estoque crítico zerar. Crie um Bot via @BotFather e insira as credenciais.
+      </div>
+      <div class="fg2">
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Bot Token (HTTP API)</label>
+          <input class="fc" id="cfg-tg-token" type="text" placeholder="Ex: 1234567890:AAH..._abcd" style="font-family:'DM Mono',monospace;font-size:12px">
+        </div>
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl">Chat ID (Grupo de Alertas)</label>
+          <input class="fc" id="cfg-tg-chat" type="text" placeholder="Ex: -100123456789" style="font-family:'DM Mono',monospace;font-size:12px">
+        </div>
+        <div class="fg" style="grid-column:1/-1">
+          <label class="fl" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="cfg-tg-ativo"> Ativar Alertas via Telegram
+          </label>
+        </div>
+      </div>
+      
+      <div id="cfg-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div id="cfg-ok" class="al al-ok" style="display:none;margin-top:12px"></div>
+      
+      <div class="mf">
+        <button class="btn btn-g" onclick="testarTelegram()">📨 Botão Teste (Enviar Mensagem)</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-r" onclick="salvarConfiguracoes()">✓ Salvar Configurações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: CONFIRMAR INÍCIO DE PRODUÇÃO (Item 8) ★ -->
+  <div class="ov" id="m-confirmar-producao">
+    <div class="modal" style="width:560px">
+      <div class="mh">
+        <div>
+          <div class="mt">⚖️ Revisar Insumos</div>
+          <div class="msb" id="cp-sub">Confirme as quantidades antes de dar baixa no estoque</div>
+        </div>
+        <span class="mx" onclick="cancelarInicioProducao()">×</span>
+      </div>
+      <div class="al al-wa" style="font-size:12px;margin-bottom:14px">
+        ⚠️ Os insumos abaixo serão <strong>deduzidos do estoque imediatamente</strong> ao confirmar. Verifique antes de prosseguir.
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Ingrediente</th><th>Qtd. a usar</th><th>Em estoque</th><th>Status</th></tr></thead>
+          <tbody id="cp-itens"></tbody>
+        </table>
+      </div>
+      <div id="cp-obs-display" style="display:none;margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:var(--r2);font-size:12px;color:var(--ink2)"></div>
+      <div id="cp-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="cancelarInicioProducao()">← Voltar e Editar</button>
+        <button class="btn btn-r" onclick="confirmarInicioProducao()">🍳 Confirmar e Iniciar Produção</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: CONFIRMAR CONSUMO INTERNO ★ -->
+  <div class="ov" id="m-consumo">
+    <div class="modal" style="width:580px">
+      <div class="mh">
+        <div>
+          <div class="mt">📋 Confirmar Registro de Uso</div>
+          <div class="msb" id="mc-sub">Verifique os itens antes de confirmar</div>
+        </div>
+        <span class="mx" onclick="consumoCancelarModal()">x</span>
+      </div>
+      <div id="mc-aviso-insuf" class="al al-wa" style="display:none;font-size:12px;margin-bottom:12px">
+        ⚠️ Um ou mais itens estão abaixo do quantidade necessária. Você ainda pode confirmar, mas o estoque ficará negativo.
+      </div>
+      <div id="mc-obs-display" style="display:none;margin-bottom:10px;padding:8px 12px;background:var(--bg);border-radius:var(--r2);font-size:12px;color:var(--ink2)"></div>
+      <div class="al al-in" style="font-size:12px;margin-bottom:14px">
+        ℹ️ Os itens abaixo serão <strong>baixados imediatamente do estoque</strong> como <strong>Consumo Interno</strong>. Verifique antes de confirmar.
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="text-align:center">Qtd. a Baixar</th>
+              <th style="text-align:center">Em Estoque</th>
+              <th style="text-align:center">Saldo Após</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="mc-itens"></tbody>
+        </table>
+      </div>
+      <div id="mc-err" class="al al-er" style="display:none;margin-top:12px"></div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="consumoCancelarModal()">← Voltar</button>
+        <button class="btn btn-r" onclick="consumoSalvar()">✓ Confirmar Consumo Interno</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ★ MODAL: DETALHE DE CONSUMO (Admin) ★ -->
+  <div class="ov" id="m-consumo-det">
+    <div class="modal" style="width:520px">
+      <div class="mh">
+        <div>
+          <div class="mt">📋 Detalhe do Registro de Consumo</div>
+        </div>
+        <span class="mx" onclick="closeM('m-consumo-det')">x</span>
+      </div>
+      <div id="mc-det-header"></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Item</th><th style="text-align:center">Qtd.</th><th style="text-align:center">Custo Unit.</th><th style="text-align:center">Custo Total</th></tr></thead>
+          <tbody id="mc-det-itens"></tbody>
+        </table>
+      </div>
+      <div class="mf">
+        <button class="btn btn-g" onclick="closeM('m-consumo-det')">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ BUSCA GLOBAL ═══════════════════ -->
+  <div id="gs-overlay">
+    <div class="gs-dialog" role="dialog" aria-modal="true" aria-label="Busca Global">
+      <div class="gs-input-row">
+        <span class="gs-input-ic">🔍</span>
+        <input id="gs-input" type="text" placeholder="Buscar recebimentos, estoque, produção, solicitações..." autocomplete="off" oninput="gsOnInput(this.value)">
+        <span class="gs-count" id="gs-count"></span>
+        <button class="gs-close-btn" onclick="closeGlobalSearch()">Esc</button>
+      </div>
+      <div id="gs-results"></div>
+      <div class="gs-footer">
+        <span class="gs-hint"><span class="gs-kbd">↑ ↓</span> Navegar</span>
+        <span class="gs-hint"><span class="gs-kbd">Enter</span> Abrir</span>
+        <span class="gs-hint"><span class="gs-kbd">Esc</span> Fechar</span>
+        <span class="gs-hint" style="margin-left:auto"><span class="gs-kbd">Ctrl</span>+<span class="gs-kbd">K</span> Atalho</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ FIREBASE SDK ═══════════════════ -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
+  <!-- Chart.js (Gráficos — Item 2) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- ═══════════════ SCRIPTS (ordem de dependência) ═══════════════ -->
+  <script src="js/data.js?v=4"></script>
+  <script src="js/utils.js?v=3"></script>
+  <script src="js/auth.js?v=4"></script>
+  <script src="js/notifications.js?v=2"></script>
+  <script src="js/pages/dashboard.js?v=2"></script>
+  <script src="js/pages/recebimento.js?v=2"></script>
+  <script src="js/pages/estoque.js?v=3"></script>
+  <script src="js/pages/solicitacoes.js?v=2"></script>
+  <script src="js/pages/relatorio.js?v=2"></script>
+  <script src="js/pages/usuarios.js?v=3"></script>
+  <script src="js/pages/trailer.js?v=3"></script>
+  <script src="js/crud.js?v=3"></script>
+  <script src="js/pages/producao.js?v=3"></script>
+  <script src="js/pages/fornecedores.js?v=3"></script>
+  <script src="js/pages/cardapio.js?v=1"></script>
+  <script src="js/pages/locais.js?v=1"></script>
+  <script src="js/pages/categorias.js?v=1"></script>
+  <script src="js/pages/estoqueLocal.js?v=2"></script>
+  <script src="js/pages/relatorios.js?v=1"></script>
+  <script src="js/pages/conferencia.js?v=1"></script>
+  <script src="js/pages/consumo.js?v=1"></script>
+  <script src="js/nav.js?v=2"></script>
+  <script src="js/globalSearch.js?v=2"></script>
+</body>
+
+</html>

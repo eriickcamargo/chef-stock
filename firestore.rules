@@ -1,0 +1,144 @@
+rules_version = '2';
+// ══════════════════════════════════════════════════════════════
+//  FIRESTORE SECURITY RULES — ChefStock / Gosto Paraense
+//  Substituição das regras de modo de teste (30 dias).
+//  Princípio: nega tudo por padrão; libera explicitamente por role.
+// ══════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Funções Helper ──────────────────────────────────────
+    function isAuth()  { return request.auth != null; }
+    function uid()     { return request.auth.uid; }
+
+    // Lê o role do usuário direto do Firestore (documento usuarios/{uid}).
+    // O document de usuário é garantidamente lido no login via startApp().
+    function role() {
+      return get(/databases/$(database)/documents/usuarios/$(uid())).data.role;
+    }
+
+    function isAdm()      { return isAuth() && role() == 'adm'; }
+    function isCoz()      { return isAuth() && role() == 'coz'; }
+    function isTrl()      { return isAuth() && role() == 'trl'; }
+    function isConf()     { return isAuth() && role() == 'conf'; }
+    function isAdmOrCoz() { return isAdm() || isCoz(); }
+
+    // ── usuarios ─────────────────────────────────────────────
+    // Qualquer autenticado pode ler o PRÓPRIO documento (necessário no
+    // startApp para carregar nome, role e ícone).
+    // Listar, criar, editar e excluir: somente admin.
+    match /usuarios/{userId} {
+      allow read:   if isAuth() && (uid() == userId || isAdm());
+      allow create: if isAdm();
+      allow update: if isAdm();
+      allow delete: if isAdm();
+    }
+
+    // ── configuracoes ────────────────────────────────────────
+    // Configurações globais (Telegram, etc.) — exclusivo do admin.
+    match /configuracoes/{docId} {
+      allow read, write: if isAdm();
+    }
+
+    // ── tipos (agrupadores de estoque) ─────────────────────────
+    // Todos lêem (necessário para montar TIPOS na inicialização).
+    // Somente admin cria, edita e exclui tipos.
+    match /tipos/{docId} {
+      allow read:                  if isAuth();
+      allow create, update, delete: if isAdm();
+    }
+
+    // ── itens (estoque) ───────────────────────────────────────
+    // Todos lêem. ADM e COZ criam novos itens.
+    // Qualquer autenticado atualiza — necessário para ajustes de estoque
+    // feitos pela produção (coz), conferência (conf) e consumo interno (trl/coz).
+    // Somente admin exclui.
+    match /itens/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAdmOrCoz();
+      allow update: if isAuth();
+      allow delete: if isAdm();
+    }
+
+    // ── fornecedores ──────────────────────────────────────────
+    match /fornecedores/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAdmOrCoz();
+      allow update: if isAdmOrCoz();
+      allow delete: if isAdm();
+    }
+
+    // ── cardapio ──────────────────────────────────────────────
+    // Todos lêem (necessário para fichas técnicas na cozinha).
+    // Somente admin gerencia o cardápio.
+    match /cardapio/{docId} {
+      allow read:                  if isAuth();
+      allow create, update, delete: if isAdm();
+    }
+
+    // ── locais (locais de armazenamento) ──────────────────────
+    match /locais/{docId} {
+      allow read:                  if isAuth();
+      allow create, update, delete: if isAdm();
+    }
+
+    // ── recebimentos ──────────────────────────────────────────
+    // ADM e COZ recebem mercadorias e editam recebimentos.
+    // Somente admin exclui.
+    match /recebimentos/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAdmOrCoz();
+      allow update: if isAdmOrCoz();
+      allow delete: if isAdm();
+    }
+
+    // ── solicitacoes ──────────────────────────────────────────
+    // TRL (trailer) e COZ criam solicitações de itens.
+    // Qualquer autenticado atualiza status (aprovação pelo admin, retirada etc.).
+    // Somente admin exclui (limpeza em lote).
+    match /solicitacoes/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && (isTrl() || isCoz());
+      allow update: if isAuth();
+      allow delete: if isAdm();
+    }
+
+    // ── producoes (fichas de produção) ────────────────────────
+    // COZ e ADM gerenciam fichas técnicas de produção.
+    match /producoes/{docId} {
+      allow read:                  if isAuth();
+      allow create, update, delete: if isCoz() || isAdm();
+    }
+
+    // ── conferencias (conferência de estoque) ─────────────────
+    // Qualquer autenticado cria e atualiza (conf inicia, adm aprova, coz/trl contam).
+    // Somente admin e conferente excluem sessões.
+    match /conferencias/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAdm() || isConf();
+    }
+
+    // ── consumos (consumo interno de itens) ───────────────────
+    // COZ e TRL registram consumo. Registros são imutáveis após criação.
+    // Somente admin exclui (limpeza administrativa).
+    match /consumos/{docId} {
+      allow read:   if isAuth();
+      allow create: if isCoz() || isTrl();
+      allow update: if false;
+      allow delete: if isAdm();
+    }
+
+    // ── atividades (log de ações) ─────────────────────────────
+    // Qualquer autenticado escreve no log. Registros são imutáveis.
+    // Somente admin exclui entradas do log.
+    match /atividades/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if false;
+      allow delete: if isAdm();
+    }
+  }
+}

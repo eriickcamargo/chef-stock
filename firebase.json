@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "limpar.html",
+      "seed.html",
+      "estoque-restaurante.html"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
