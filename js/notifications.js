@@ -26,18 +26,19 @@ function updateNotifs(){
   } else {
     cnt=pend.length;
     pend.forEach(s=>notifs.push({t:'wa',m:`Pedido ${s.id} do ${s.de} aguarda confirmação (${s.hora})`}));
-    getAllItems().filter(i=>nvl(i.estq,i.min)==='e').forEach(i=> {
-      notifs.push({t:'er',m:`Crítico: ${i.nome} — ${i.estq} ${i.un} (mín: ${i.min})`});
+    getAllItems().filter(i=>nvl(getEstqTotal(i),i.min)==='e').forEach(i=> {
+      const total=getEstqTotal(i);
+      notifs.push({t:'er',m:`Crítico: ${i.nome} — ${total} ${i.un} (mín: ${i.min})`});
       if(!tgAlertedItems.has(i.id)){
         tgAlertedItems.add(i.id);
         if(!tgFirstLoad){
-          enviarAlertaTelegram(`🚨 <b>Estoque Crítico</b>\nO item <b>${i.nome}</b> atingiu nível crítico.\n📦 Saldo: ${i.estq} ${i.un}\n📉 Mínimo Exigido: ${i.min} ${i.un}`);
+          enviarAlertaTelegram(`🚨 <b>Estoque Crítico</b>\nO item <b>${i.nome}</b> atingiu nível crítico.\n📦 Saldo Total: ${total} ${i.un}\n📉 Mínimo Exigido: ${i.min} ${i.un}`);
         }
       }
     });
     tgFirstLoad=false;
     getAllItems().forEach(i=>{
-      if(nvl(i.estq,i.min)!=='e' && tgAlertedItems.has(i.id)) tgAlertedItems.delete(i.id);
+      if(nvl(getEstqTotal(i),i.min)!=='e' && tgAlertedItems.has(i.id)) tgAlertedItems.delete(i.id);
     });
   }
   document.getElementById('bell-n').textContent=cnt;
@@ -286,17 +287,37 @@ async function verificarComandosTelegram(){
 }
 
 function responderListaCompras(chatId){
-  const criticos = getAllItems().filter(i => nvl(i.estq, i.min) === 'e');
-  
+  const criticos = getAllItems().filter(i => nvl(getEstqTotal(i), i.min) === 'e');
+
   if(criticos.length === 0){
     enviarAlertaTelegram(`✅ <b>Lista de Compras Vazia</b>\nNenhum produto está abaixo do limite mínimo de estoque no momento.`, chatId);
     return;
   }
-  
-  /* Agrupa por fornecedor para facilitar quem vai comprar */
-  const linhas = criticos.map(i => `• <b>${i.nome}</b> (Falta: ${(i.min - i.estq).toFixed(2)} ${i.un})`);
-  
-  const relatorio = `🛒 <b>LISTA DE COMPRAS URGENTES</b>\n\n${linhas.join('\n')}\n\n<i>Gerado agora pelo app ChefStock</i>`;
+
+  let secoes = [];
+  let totalEstimado = 0;
+
+  for(const tipo of TIPOS){
+    const itensTipo = tipo.itens.filter(i => nvl(i.estq, i.min) === 'e');
+    if(itensTipo.length === 0) continue;
+
+    const linhas = itensTipo.map(i => {
+      const falta = parseFloat((i.min - getEstqTotal(i)).toFixed(2));
+      const custo = i.custo || 0;
+      const estimativa = falta * custo;
+      totalEstimado += estimativa;
+      const precoTexto = custo > 0 ? ` — ~${brl(estimativa)}` : '';
+      return `  • <b>${i.nome}</b>: ${falta} ${i.un}${precoTexto}`;
+    });
+
+    secoes.push(`${tipo.icon || '📦'} <b>${tipo.nome.toUpperCase()}</b>\n${linhas.join('\n')}`);
+  }
+
+  const totalTexto = totalEstimado > 0
+    ? `\n\n💰 <b>Estimativa Total: ${brl(totalEstimado)}</b>`
+    : '';
+
+  const relatorio = `🛒 <b>LISTA DE COMPRAS URGENTES</b>\n\n${secoes.join('\n\n')}${totalTexto}\n\n<i>Gerado agora pelo app ChefStock</i>`;
   enviarAlertaTelegram(relatorio, chatId);
 }
 

@@ -147,6 +147,122 @@ async function responderListaCompras(chatId) {
   }
 }
 
+async function responderEstoqueBaixo(chatId) {
+  try {
+    const tipos = await loadItemsGroupedByTipo();
+    const baixos = tipos.flatMap(t =>
+      t.itens
+        .filter(i => nvl(getEstqTotal(i), i.min) === 'w')
+        .map(i => ({ ...i, _tipoNome: t.nome, _tipoIcon: t.icon }))
+    );
+
+    if (baixos.length === 0) {
+      await sendTelegram(
+        '✅ <b>Estoque OK</b>\nNenhum produto está abaixo do mínimo no momento.',
+        chatId
+      );
+      return;
+    }
+
+    const linhas = baixos.map(i => {
+      const total = getEstqTotal(i);
+      const pct   = Math.round((total / i.min) * 100);
+      return `  ${i._tipoIcon} <b>${i.nome}</b>: ${total} / ${i.min} ${i.un} (${pct}%)`;
+    });
+
+    await sendTelegram(
+      `⚠️ <b>ESTOQUE ABAIXO DO MÍNIMO</b>\n\n${linhas.join('\n')}\n\n<i>${baixos.length} item(ns) — use /lista_de_compras para os críticos</i>`,
+      chatId
+    );
+  } catch (e) {
+    console.error('[Bot] Erro ao gerar estoque baixo:', e.message);
+    await sendTelegram('❌ Erro ao consultar estoque baixo. Tente novamente.', chatId);
+  }
+}
+
+async function responderResumo(chatId) {
+  try {
+    const [tipos, solsSnap, prodsSnap] = await Promise.all([
+      loadItemsGroupedByTipo(),
+      db.collection('solicitacoes').get(),
+      db.collection('producoes').get(),
+    ]);
+
+    const todos    = tipos.flatMap(t => t.itens);
+    const criticos = todos.filter(i => nvl(getEstqTotal(i), i.min) === 'e');
+    const baixos   = todos.filter(i => nvl(getEstqTotal(i), i.min) === 'w');
+
+    const pendentes = solsSnap.docs.filter(d => d.data().status === 'pendente').length;
+    const andamento = solsSnap.docs.filter(d =>
+      ['aprovada', 'parcial', 'retirado', 'enviado'].includes(d.data().status)
+    ).length;
+
+    const prodsAtivas = prodsSnap.docs.filter(d => d.data().status === 'em_andamento').length;
+
+    const valorEstoque = todos.reduce((s, i) => s + getEstqTotal(i) * (i.custo || 0), 0);
+
+    const linhasCrit = criticos.length > 0
+      ? `\n🚨 Itens críticos: <b>${criticos.length}</b>`
+      : '\n🚨 Itens críticos: <b>0</b> ✅';
+
+    await sendTelegram(
+      `📊 <b>RESUMO CHEFSTOCK</b>\n` +
+      `<i>${new Date().toLocaleString('pt-BR', { timeZone: 'America/Belem' })}</i>\n` +
+      `\n📦 <b>Estoque</b>${linhasCrit}` +
+      `\n⚠️ Abaixo do mínimo: <b>${baixos.length}</b>` +
+      `\n💰 Valor total: <b>${brl(valorEstoque)}</b>` +
+      `\n\n📋 <b>Solicitações</b>` +
+      `\n🕐 Pendentes (aguardando aprovação): <b>${pendentes}</b>` +
+      `\n🔄 Em andamento: <b>${andamento}</b>` +
+      `\n\n🍳 <b>Produções ativas:</b> ${prodsAtivas}`,
+      chatId
+    );
+  } catch (e) {
+    console.error('[Bot] Erro ao gerar resumo:', e.message);
+    await sendTelegram('❌ Erro ao gerar resumo. Tente novamente.', chatId);
+  }
+}
+
+async function responderSolicitacoes(chatId) {
+  try {
+    const snap = await db.collection('solicitacoes')
+      .where('status', '==', 'pendente')
+      .get();
+
+    const docs = snap.docs.sort((a, b) => {
+      const tA = a.data().ts?.toMillis?.() ?? 0;
+      const tB = b.data().ts?.toMillis?.() ?? 0;
+      return tA - tB;
+    });
+
+    if (snap.empty) {
+      await sendTelegram(
+        '✅ <b>Sem Solicitações Pendentes</b>\nNenhuma solicitação aguardando aprovação.',
+        chatId
+      );
+      return;
+    }
+
+    const linhas = docs.map(d => {
+      const s        = d.data();
+      const qtdItens = Array.isArray(s.itens) ? s.itens.length : 0;
+      const hora     = s.hora || (s.ts?.toDate
+        ? s.ts.toDate().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Belem' })
+        : '');
+      const deTexto  = s.de ? ` — <i>${s.de}</i>` : '';
+      return `  📌 <b>${s.id || d.id}</b>${deTexto}: ${qtdItens} item(ns) às ${hora}`;
+    });
+
+    await sendTelegram(
+      `📋 <b>SOLICITAÇÕES PENDENTES (${snap.size})</b>\n\n${linhas.join('\n')}\n\n<i>Acesse o app para aprovar ou recusar.</i>`,
+      chatId
+    );
+  } catch (e) {
+    console.error('[Bot] Erro ao buscar solicitações:', e.message);
+    await sendTelegram('❌ Erro ao buscar solicitações. Tente novamente.', chatId);
+  }
+}
+
 async function verificarComandosTelegram() {
   if (!telegramConfig.ativo || !telegramConfig.token) return;
 
@@ -168,9 +284,20 @@ async function verificarComandosTelegram() {
 
       if (t === '/lista_de_compras' || t === '/lista') {
         await responderListaCompras(msg.chat.id);
+      } else if (t === '/estoque_baixo') {
+        await responderEstoqueBaixo(msg.chat.id);
+      } else if (t === '/resumo') {
+        await responderResumo(msg.chat.id);
+      } else if (t === '/solicitacoes') {
+        await responderSolicitacoes(msg.chat.id);
       } else if (t === '/start') {
         await sendTelegram(
-          '🤖 Olá! Eu sou o Bot do <b>ChefStock</b>.\n\nComandos disponíveis:\n/lista_de_compras — Ver produtos abaixo do mínimo',
+          '🤖 Olá! Eu sou o Bot do <b>ChefStock</b>.\n\n' +
+          '<b>Comandos disponíveis:</b>\n' +
+          '/resumo — Painel geral do dia\n' +
+          '/lista_de_compras — Produtos críticos para comprar\n' +
+          '/estoque_baixo — Produtos abaixo do mínimo\n' +
+          '/solicitacoes — Solicitações pendentes de aprovação',
           msg.chat.id
         );
       }

@@ -72,3 +72,8 @@ node_modules/
 seed.html
 limpar.html
 estoque-restaurante.html
+
+# Chaves de conta de serviço Firebase Admin SDK (nunca subir ao git)
+*adminsdk*.json
+*service-account*.json
+*serviceAccount*.json
