@@ -5,6 +5,7 @@
 ══════════════════════════════════════════════════ */
 
 function mkCategorias(){
+  if(SESSION?.role!=='adm') return mkPg('categorias');
   const pg=mkPg('categorias');
   pg.innerHTML=categoriasHTML();
   return pg;

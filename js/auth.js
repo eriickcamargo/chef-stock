@@ -46,7 +46,7 @@ async function startApp(user){
     auth.signOut(); return;
   }
   const u = doc.data();
-  SESSION = { uid: user.uid, user: u.user||'', role: u.role, name: u.nome, icon: u.icon||'👤', email: user.email };
+  SESSION = Object.freeze({ uid: user.uid, user: u.user||'', role: u.role, name: u.nome, icon: u.icon||'👤', email: user.email });
 
   const cfg = CFG[SESSION.role];
   if(!cfg){ alert('Perfil inválido.'); auth.signOut(); return; }

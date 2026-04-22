@@ -3,6 +3,7 @@
 ══════════════════════════════════════════════════ */
 
 function mkFornecedores(){
+  if(SESSION?.role!=='adm') return mkPg('fornecedores');
   const pg=mkPg('fornecedores');
   pg.innerHTML=fornecedoresHTML();
   return pg;

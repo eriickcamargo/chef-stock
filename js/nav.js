@@ -2,58 +2,67 @@
    NAV — Navegação lateral e roteamento
 ══════════════════════════════════════════════════ */
 
-const NAV={
-  adm:[
-    {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Painel Geral'}]},
-    {s:'Operacional', items:[
-      {id:'receb',       ic:'📦',lb:'Recebimento'},
-      {id:'estoque',     ic:'🏪',lb:'Estoque'},
-      {id:'conferencia', ic:'🗂️',lb:'Conferência'},
-      {id:'producao',    ic:'🍳',lb:'Produção'},
-      {id:'consumo',     ic:'🏷️',lb:'Registro de Uso'},
-      {id:'sols',        ic:'📋',lb:'Solicitações',bdg:()=>solicitacoes.filter(s=>s.status==='pendente').length},
-      {id:'novo',        ic:'📝',lb:'Novo Pedido'},
-    ]},
-    {s:'Consulta',    items:[{id:'estoque-local',ic:'📍',lb:'Estoque por Local'},{id:'relatorios',ic:'📊',lb:'Relatórios'}]},
-    {s:'Cadastros',   items:[{id:'cardapio',ic:'🍽️',lb:'Cardápio'},{id:'categorias',ic:'🏷️',lb:'Categorias'},{id:'locais',ic:'📍',lb:'Locais'},{id:'fornecedores',ic:'🏢',lb:'Fornecedores'},{id:'usuarios',ic:'👥',lb:'Usuários'}]},
-    {s:'Sistema',     items:[{id:'config',ic:'⚙️',lb:'Configurações', action:'openConfigModal'}]},
-  ],
-  coz:[
-    {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Painel'}]},
-    {s:'Minha Área',  items:[
-      {id:'estoque',     ic:'🏪',lb:'Estoque'},
-      {id:'conferencia', ic:'🗂️',lb:'Conferência'},
-      {id:'producao',    ic:'🍳',lb:'Produção'},
-      {id:'consumo',     ic:'🏷️',lb:'Registro de Uso'},
-      {id:'sols',        ic:'📋',lb:'Solicitações',bdg:()=>solicitacoes.filter(s=>s.status==='pendente').length},
-    ]},
-    {s:'Consulta',   items:[{id:'estoque-local',ic:'📍',lb:'Estoque por Local'}]},
-    {s:'Cadastros',   items:[{id:'cardapio',ic:'🍽️',lb:'Cardápio'}]},
-  ],
-  trl:[
-    {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Meu Painel'}]},
-    {s:'Pedidos',     items:[
-      {id:'novo',        ic:'📝',lb:'Novo Pedido'},
-      {id:'meus',        ic:'📋',lb:'Meus Pedidos'},
-      {id:'conferencia', ic:'🗂️',lb:'Conferência'},
-      {id:'consumo',     ic:'🏷️',lb:'Registro de Uso'},
-    ]},
-    {s:'Consulta',   items:[{id:'estoque-local',ic:'📍',lb:'Estoque por Local'}]},
-  ],
-  conf:[
-    {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Painel'}]},
-    {s:'Conferência', items:[
-      {id:'conferencia', ic:'🗂️',lb:'Conf. Estoque'},
-      {id:'sols',        ic:'📋',lb:'Pedidos',bdg:()=>solicitacoes.filter(s=>s.status==='pendente').length},
-      {id:'estoque',     ic:'🏪',lb:'Estoque'},
-      {id:'estoque-local',ic:'📍',lb:'Estoque por Local'},
-    ]},
-  ],
-};
+/* NAV — estrutura encapsulada; somente o perfil ativo é acessível em runtime */
+const NAV = (() => {
+  const _data = {
+    adm:[
+      {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Painel Geral'}]},
+      {s:'Operacional', items:[
+        {id:'receb',       ic:'📦',lb:'Recebimento'},
+        {id:'estoque',     ic:'🏪',lb:'Estoque'},
+        {id:'conferencia', ic:'🗂️',lb:'Conferência'},
+        {id:'producao',    ic:'🍳',lb:'Produção'},
+        {id:'consumo',     ic:'🏷️',lb:'Registro de Uso'},
+        {id:'sols',        ic:'📋',lb:'Solicitações',bdg:()=>solicitacoes.filter(s=>s.status==='pendente').length},
+        {id:'novo',        ic:'📝',lb:'Novo Pedido'},
+      ]},
+      {s:'Consulta',    items:[{id:'estoque-local',ic:'📍',lb:'Estoque por Local'},{id:'relatorios',ic:'📊',lb:'Relatórios'}]},
+      {s:'Cadastros',   items:[{id:'cardapio',ic:'🍽️',lb:'Cardápio'},{id:'categorias',ic:'🏷️',lb:'Categorias'},{id:'locais',ic:'📍',lb:'Locais'},{id:'fornecedores',ic:'🏢',lb:'Fornecedores'},{id:'usuarios',ic:'👥',lb:'Usuários'}]},
+      {s:'Sistema',     items:[{id:'config',ic:'⚙️',lb:'Configurações', action:'openConfigModal'}]},
+    ],
+    coz:[
+      {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Painel'}]},
+      {s:'Minha Área',  items:[
+        {id:'estoque',     ic:'🏪',lb:'Estoque'},
+        {id:'conferencia', ic:'🗂️',lb:'Conferência'},
+        {id:'producao',    ic:'🍳',lb:'Produção'},
+        {id:'consumo',     ic:'🏷️',lb:'Registro de Uso'},
+        {id:'sols',        ic:'📋',lb:'Solicitações',bdg:()=>solicitacoes.filter(s=>s.status==='pendente').length},
+      ]},
+      {s:'Consulta',   items:[{id:'estoque-local',ic:'📍',lb:'Estoque por Local'}]},
+      {s:'Cadastros',   items:[{id:'cardapio',ic:'🍽️',lb:'Cardápio'}]},
+    ],
+    trl:[
+      {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Meu Painel'}]},
+      {s:'Pedidos',     items:[
+        {id:'novo',        ic:'📝',lb:'Novo Pedido'},
+        {id:'meus',        ic:'📋',lb:'Meus Pedidos'},
+        {id:'conferencia', ic:'🗂️',lb:'Conferência'},
+        {id:'consumo',     ic:'🏷️',lb:'Registro de Uso'},
+      ]},
+      {s:'Consulta',   items:[{id:'estoque-local',ic:'📍',lb:'Estoque por Local'}]},
+    ],
+    conf:[
+      {s:'Principal',   items:[{id:'dash',ic:'⬛',lb:'Painel'}]},
+      {s:'Conferência', items:[
+        {id:'conferencia', ic:'🗂️',lb:'Conf. Estoque'},
+        {id:'sols',        ic:'📋',lb:'Pedidos',bdg:()=>solicitacoes.filter(s=>s.status==='pendente').length},
+        {id:'estoque',     ic:'🏪',lb:'Estoque'},
+        {id:'estoque-local',ic:'📍',lb:'Estoque por Local'},
+      ]},
+    ],
+  };
+  return {
+    /* Retorna apenas a estrutura do perfil solicitado */
+    get(role){ return _data[role] || []; },
+    /* Retorna IDs de páginas permitidas para o perfil */
+    allowedIds(role){ return (_data[role]||[]).flatMap(g=>g.items.map(it=>it.id)); },
+  };
+})();
 
 function buildNav(){
   const el=document.getElementById('side');el.innerHTML='';
-  NAV[SESSION.role].forEach(g=>{
+  NAV.get(SESSION.role).forEach(g=>{
     const s=document.createElement('div');s.className='ns';s.textContent=g.s;el.appendChild(s);
     g.items.forEach(item=>{
       const n=document.createElement('div');n.className='ni';n.dataset.pg=item.id;
@@ -75,6 +84,7 @@ function buildNav(){
 }
 
 function navTo(id,el){
+  if(!NAV.allowedIds(SESSION?.role).includes(id)) return;
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
   const target=el||document.querySelector(`.ni[data-pg="${id}"]`);
   if(target)target.classList.add('on');
@@ -106,7 +116,7 @@ function buildBottomNav(){
   const bn=document.getElementById('bottom-nav');
   if(!bn)return;
   const allItems=[];
-  NAV[SESSION.role].forEach(g=>g.items.forEach(it=>allItems.push(it)));
+  NAV.get(SESSION.role).forEach(g=>g.items.forEach(it=>allItems.push(it)));
 
   const direct=allItems.slice(0,MAX_BNAV);
   const overflow=allItems.slice(MAX_BNAV);

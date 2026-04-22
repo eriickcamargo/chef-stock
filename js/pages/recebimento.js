@@ -13,6 +13,7 @@ let editandoReceb = null; /* docId da NF em edição (F3) */
    TABELA DE RECEBIMENTOS (com ações F3)
 ══════════════════════════════════════ */
 function mkReceb(){
+  if(SESSION?.role!=='adm') return mkPg('receb');
   const pg=mkPg('receb');
   pg.innerHTML=`
     <div style="display:flex;justify-content:flex-end;margin-bottom:14px">

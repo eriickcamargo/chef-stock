@@ -4,6 +4,7 @@
 ══════════════════════════════════════════════════ */
 
 function mkLocais(){
+  if(SESSION?.role!=='adm') return mkPg('locais');
   const pg=mkPg('locais');
   pg.innerHTML=locaisHTML();
   return pg;

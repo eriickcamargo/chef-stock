@@ -14,6 +14,7 @@ const ROLE_STYLE = {
 let delUserLogin = null;
 
 function mkUsuarios(){
+  if(SESSION?.role!=='adm') return mkPg('usuarios');
   const pg=mkPg('usuarios');
   pg.innerHTML=usuariosHTML();
   return pg;
