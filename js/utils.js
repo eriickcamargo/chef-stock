@@ -100,6 +100,31 @@ function populateFornSelects(selectedValue){
   });
 }
 
+/* Popula todos os selects de local dinamicamente */
+function populateLocalSelects(){
+  const selects=document.querySelectorAll('.local-select');
+  selects.forEach(sel=>{
+    const current=sel.value;
+    const coz=locais.filter(l=>l.setor!=='Trailer');
+    const trl=locais.filter(l=>l.setor==='Trailer');
+    let html='';
+    if(coz.length){
+      html+=`<optgroup label="🍳 Cozinha">`;
+      coz.forEach(l=>{html+=`<option${l.nome===current?' selected':''}>${l.nome}</option>`;});
+      html+=`</optgroup>`;
+    }
+    if(trl.length){
+      html+=`<optgroup label="🚌 Trailer">`;
+      trl.forEach(l=>{html+=`<option${l.nome===current?' selected':''}>${l.nome}</option>`;});
+      html+=`</optgroup>`;
+    }
+    sel.innerHTML=html;
+    if(current&&!locais.find(l=>l.nome===current)){
+      sel.innerHTML+=`<option selected>${current}</option>`;
+    }
+  });
+}
+
 /* ── F2: Inicializa overlay click-to-close com alerta de dados não salvos ── */
 document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{
   if(e.target!==o)return;

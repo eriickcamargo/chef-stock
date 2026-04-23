@@ -192,28 +192,3 @@ async function doExcluirLocal(){
   }
 }
 
-/* ── Populate all local selects dynamically ── */
-function populateLocalSelects(){
-  const selects=document.querySelectorAll('.local-select');
-  selects.forEach(sel=>{
-    const current=sel.value;
-    /* Group by setor */
-    const coz=locais.filter(l=>l.setor!=='Trailer');
-    const trl=locais.filter(l=>l.setor==='Trailer');
-    let html='';
-    if(coz.length){
-      html+=`<optgroup label="🍳 Cozinha">`;
-      coz.forEach(l=>{html+=`<option${l.nome===current?' selected':''}>${l.nome}</option>`;});
-      html+=`</optgroup>`;
-    }
-    if(trl.length){
-      html+=`<optgroup label="🚌 Trailer">`;
-      trl.forEach(l=>{html+=`<option${l.nome===current?' selected':''}>${l.nome}</option>`;});
-      html+=`</optgroup>`;
-    }
-    sel.innerHTML=html;
-    if(current && !locais.find(l=>l.nome===current)){
-      sel.innerHTML+=`<option selected>${current}</option>`;
-    }
-  });
-}

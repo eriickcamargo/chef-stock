@@ -65,6 +65,9 @@ async function startApp(user){
   /* Load all data from Firestore */
   await loadAllData();
 
+  /* Carrega apenas os scripts do perfil autenticado */
+  await loadRoleScripts(SESSION.role);
+
   buildPages(); buildNav(); updateNotifs(); rebuildDash();
   startOrderListener();
 
