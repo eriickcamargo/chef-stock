@@ -203,9 +203,8 @@ function buildKitchenPages(main){
   main.appendChild(mkConsumo());
   main.appendChild(mkSols());
   main.appendChild(mkEstoqueLocal());
-  main.appendChild(mkRelatorios());
   main.appendChild(mkCardapio());
-  if(SESSION.role==='adm'){main.appendChild(mkReceb());main.appendChild(mkNovo());main.appendChild(mkMeus());main.appendChild(mkCategorias());main.appendChild(mkLocais());main.appendChild(mkFornecedores());main.appendChild(mkUsuarios());}
+  if(SESSION.role==='adm'){main.appendChild(mkRelatorios());main.appendChild(mkReceb());main.appendChild(mkNovo());main.appendChild(mkMeus());main.appendChild(mkCategorias());main.appendChild(mkLocais());main.appendChild(mkFornecedores());main.appendChild(mkUsuarios());}
   populateFornSelects();
   populateLocalSelects();
   loadConsumos();

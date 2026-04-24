@@ -25,9 +25,8 @@ let telegramConfig = { ativo: false, token: '', chatId: '' };
 let tgUpdateOffset  = 0;
 let alertedItems    = new Set(); /* IDs já notificados (evita spam no restart) */
 
-const POLL_INTERVAL         = 5_000;          /* checar Telegram a cada 5s */
-const STOCK_CHECK_INTERVAL  = 5 * 60_000;     /* checar estoque a cada 5min */
-const CONFIG_RELOAD_INTERVAL= 5 * 60_000;     /* recarregar config a cada 5min */
+const POLL_INTERVAL        = 5_000;   /* checar Telegram a cada 5s */
+const STOCK_CHECK_INTERVAL = 5 * 60_000; /* checar estoque a cada 5min */
 
 /* ── Helpers (espelham a lógica do browser) ── */
 function nvl(q, m) {
@@ -50,15 +49,24 @@ function brl(v) {
 
 /* ── Firestore ── */
 async function loadTelegramConfig() {
-  try {
-    const doc = await db.collection('configuracoes').doc('geral').get();
-    if (doc.exists) {
-      telegramConfig = doc.data().telegram || telegramConfig;
-    }
-    console.log(`[Config] Telegram ativo: ${telegramConfig.ativo}`);
-  } catch (e) {
-    console.error('[Config] Erro ao carregar:', e.message);
+  const doc = await db.collection('configuracoes').doc('geral').get();
+  if (doc.exists) {
+    telegramConfig = doc.data().telegram || telegramConfig;
   }
+}
+
+function watchTelegramConfig() {
+  db.collection('configuracoes').doc('geral').onSnapshot(
+    snap => {
+      if (!snap.exists) return;
+      const novo = snap.data().telegram;
+      if (!novo) return;
+      const mudou = novo.ativo !== telegramConfig.ativo || novo.token !== telegramConfig.token || novo.chatId !== telegramConfig.chatId;
+      telegramConfig = novo;
+      if (mudou) console.log(`[Config] Telegram atualizado — ativo: ${telegramConfig.ativo}`);
+    },
+    err => console.error('[Config] Listener erro:', err.message)
+  );
 }
 
 async function loadItemsGroupedByTipo() {
@@ -346,7 +354,7 @@ async function main() {
   await verificarEstoqueCritico(true);
   console.log(`[ChefStock Bot] ${alertedItems.size} item(ns) crítico(s) no startup (sem alerta).`);
 
-  setInterval(loadTelegramConfig,       CONFIG_RELOAD_INTERVAL);
+  watchTelegramConfig();
   setInterval(verificarComandosTelegram, POLL_INTERVAL);
   setInterval(verificarEstoqueCritico,   STOCK_CHECK_INTERVAL);
 
