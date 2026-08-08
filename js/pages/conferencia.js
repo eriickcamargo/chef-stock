@@ -33,20 +33,22 @@ function confBuildItens(locaisNomes) {
   getAllItems().forEach(item => {
     const tipo = getTipoByItem(item.id);
     const itemLocais = [];
+    const estqP = Math.round((item.estq || 0) * 1000) / 1000;
     if (item.local && locaisNomes.includes(item.local)) {
       itemLocais.push({
         localNome: item.local,
         setor: locais.find(l => l.nome === item.local)?.setor || '',
-        estoqSys: item.estq || 0,
+        estoqSys: estqP,
         contado: null, isPrimary: true, distIdx: -1
       });
     }
-    (item.distribuicao || []).forEach((d, idx) => {
-      if (d.local && locaisNomes.includes(d.local)) {
+    (Array.isArray(item.distribuicao) ? item.distribuicao : []).forEach((d, idx) => {
+      const qtdP = Math.round((d.qtd || 0) * 1000) / 1000;
+      if (d.local && locaisNomes.includes(d.local) && d.local !== item.local) {
         itemLocais.push({
           localNome: d.local,
           setor: locais.find(l => l.nome === d.local)?.setor || '',
-          estoqSys: d.qtd || 0,
+          estoqSys: qtdP,
           contado: null, isPrimary: false, distIdx: idx
         });
       }
